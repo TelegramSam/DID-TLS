@@ -12,6 +12,17 @@ hosted_did_directory = {
     'did:sov:aaaaa#cert1': {'cert':'certs/a.crt', 'key':'certs/a.key'}
 }
 
+signer_cert_cache = {}
+
+async def load_signer_cert(did_cert_fragment):
+    await asyncio.sleep(0.5) #pretend to be async
+    if did_cert_fragment == 'did:sov:bbbbb#cert1':
+        with open('certs/b.crt') as f:
+            signer_cert_cache['did:sov:bbbbb#cert1'] = f.read()
+        print("cert loaded")
+    else:
+        print("requested cert fragment unknown. cannot load to cache")
+
 
 async def hello(request):
     ssl_socket = request.transport.get_extra_info('ssl_object')
@@ -36,15 +47,21 @@ def handle_sni(ssl_socket, sni_hint, orig_ssl_context):
     # This is the DID that the client is expecting to talk to.
     if sni_hint.startswith("did:"):
         #unpack sni hint
-        server_did, client_signed_cert = sni_hint.split(".")
+        server_did, signer_cert_fragment = sni_hint.split(".")
 
         if server_did in hosted_did_directory:
             did_cert = hosted_did_directory[server_did]
-            with open('certs/b.crt') as f:
-                client_ca_data = f.read()
-                client_signed_cert = client_ca_data
 
-            new_context = ssl.create_default_context(purpose=ssl.Purpose.CLIENT_AUTH, cadata=client_signed_cert)#cafile='certs/b.crt'
+            if signer_cert_fragment not in signer_cert_cache:
+                print("Signer Cert not in cache. Load async.")
+                app.loop.create_task(load_signer_cert(signer_cert_fragment))
+                print("Hangup")
+                return 48
+            # 48 unknown_ca
+
+            signer_cert = signer_cert_cache[signer_cert_fragment]
+
+            new_context = ssl.create_default_context(purpose=ssl.Purpose.CLIENT_AUTH, cadata=signer_cert)#cafile='certs/b.crt'
             new_context.load_cert_chain(certfile=did_cert['cert'], keyfile=did_cert['key'])
             new_context.verify_mode = ssl.CERT_OPTIONAL
             ssl_socket.context = new_context

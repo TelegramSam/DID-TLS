@@ -12,14 +12,14 @@ ssl_ctx.check_hostname = False
 
 async def main():
 
+    signer_did_cert_fragment = "did:sov:bbbbb#cert1"
+
     remote_did = "did:sov:aaaaa#cert1"
     #TODO: Look up fingerprint and host from DID.
     remote_fingerprint = b'\x05F\xdd\x86\x1d\xba;\\E\x19R\xdf\xbf\xc4\x95H\xe03\xa7\xe4\xfe(\n\x86\x9f\xd1\xaf2\xf5\x9c\xf4w'
     remote_agent_host = 'https://localhost:8443/'
 
-    with open('certs/b.crt') as f:
-        client_ca_data = f.read().replace('\n','')
-    sni_package = ".".join([remote_did, client_ca_data[:56]])
+    sni_package = ".".join([remote_did, signer_did_cert_fragment])
 
     print("SNI Package Length: {}".format(len(sni_package)))
 
@@ -37,14 +37,21 @@ async def main():
 
     #make request
     async with aiohttp.ClientSession(connector=conn) as session:
-        try:
-            async with session.get(remote_agent_host) as response:
-                print( await response.text())
-        except aiohttp.ServerFingerprintMismatch as e:
-            exc = e
-            print("Remote Cert Fingerprint Not Matching: ")
-            print(exc.expected)
-
+        remaining_retries = 3
+        while remaining_retries > 0:
+            remaining_retries -= 1
+            try:
+                async with session.get(remote_agent_host) as response:
+                    print( await response.text())
+                    break #request success
+            except aiohttp.ServerFingerprintMismatch as e:
+                exc = e
+                print("Remote Cert Fingerprint Not Matching: ")
+                print(exc.expected)
+                break
+            except aiohttp.client_exceptions.ClientConnectorError as ce:
+                print("sleeping, waiting for a retry")
+                await asyncio.sleep(2)
 
 
 loop = asyncio.get_event_loop()
