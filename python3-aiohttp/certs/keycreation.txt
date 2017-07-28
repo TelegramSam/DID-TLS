@@ -1,0 +1,14 @@
+--create self-signed certs
+openssl req -newkey rsa:2048 -nodes -keyout x.key -x509 -days 365 -out x.crt
+
+-- Generating the new client key, with csr for signing.
+openssl req -newkey rsa:2048 -nodes -keyout c.key -days 3560 -out c.csr
+-- signing with known CA
+
+
+-- key index
+
+ca.* - self signed cert authority keys for signing client certs
+a.* - did:sov:aaaaa
+b.* - did:sov:bbbbb
+c.* - did:sov:ccccc (signed with ca.*)
