@@ -10,19 +10,27 @@ ssl_ctx.check_hostname = False
 #ssl_ctx.verify_mode = ssl.CERT_NONE
 
 
+def encode_sni_payload(remote_did, local_did, signer_did, routing_key):
+    payload = ".".join([remote_did, local_did, signer_did])
+    # TODO: Encrypt Payload with routing_key
+    print("SNI Package Length: {}".format(len(payload)))
+    return payload
+
 async def main():
 
     signer_did_cert_fragment = "did:sov:bbbbb#cert1"
+    local_did = "did:sov:bbbbb#cert1"
 
     remote_did = "did:sov:aaaaa#cert1"
+    routing_key = "did:sov:rrrrr#routingcert"
     #TODO: Look up fingerprint and host from DID.
+    #TODO: We can't use a fingerprint with an agent key instead of ddo key directly.
+    #      We need to put the DDO key in the chain, and then validate that the expected certificate was returned.
+    #      This explicit check is requied to avoid accepting any key that validates to an existing CA.
     remote_fingerprint = b'\x05F\xdd\x86\x1d\xba;\\E\x19R\xdf\xbf\xc4\x95H\xe03\xa7\xe4\xfe(\n\x86\x9f\xd1\xaf2\xf5\x9c\xf4w'
     remote_agent_host = 'https://localhost:8443/'
 
-    sni_package = ".".join([remote_did, signer_did_cert_fragment])
-
-    print("SNI Package Length: {}".format(len(sni_package)))
-
+    sni_package = encode_sni_payload(remote_did, local_did, signer_did_cert_fragment, routing_key)
 
     # Prepare SNI Resolver
     class CustomSNIResolver(aiohttp.resolver.DefaultResolver):
@@ -50,6 +58,7 @@ async def main():
                 print(exc.expected)
                 break
             except aiohttp.client_exceptions.ClientConnectorError as ce:
+                # TODO: Accurately Detect certificate_unknown (46) TLS alert
                 print("sleeping, waiting for a retry")
                 await asyncio.sleep(2)
 

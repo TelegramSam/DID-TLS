@@ -3,6 +3,8 @@ from aiohttp import web
 import ssl
 import os
 
+routing_key = "did:sov:rrrrr#routingcert"
+
 #command used to generate certs:
 # openssl req -newkey rsa:2048 -nodes -keyout x.key -x509 -days 365 -out x.crt
 certfile = os.path.abspath("certs/a.crt")
@@ -22,6 +24,11 @@ async def load_signer_cert(did_cert_fragment):
         print("cert loaded")
     else:
         print("requested cert fragment unknown. cannot load to cache")
+
+def decode_sni_payload(payload, routing_key):
+    # TODO: Decrypt Payload with routing_key
+    remote_did, local_did, signer_did = payload.split(".")
+    return remote_did, local_did, signer_did
 
 
 async def hello(request):
@@ -47,7 +54,7 @@ def handle_sni(ssl_socket, sni_hint, orig_ssl_context):
     # This is the DID that the client is expecting to talk to.
     if sni_hint.startswith("did:"):
         #unpack sni hint
-        server_did, signer_cert_fragment = sni_hint.split(".")
+        server_did, client_did, signer_cert_fragment = decode_sni_payload(sni_hint, routing_key)
 
         if server_did in hosted_did_directory:
             did_cert = hosted_did_directory[server_did]
@@ -56,8 +63,8 @@ def handle_sni(ssl_socket, sni_hint, orig_ssl_context):
                 print("Signer Cert not in cache. Load async.")
                 app.loop.create_task(load_signer_cert(signer_cert_fragment))
                 print("Hangup")
-                return 48
-            # 48 unknown_ca
+                return 46
+            # 48 certificate_unknown
 
             signer_cert = signer_cert_cache[signer_cert_fragment]
 
