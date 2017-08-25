@@ -30,8 +30,7 @@ def decode_sni_payload(payload, routing_key):
     remote_did, local_did, signer_did = payload.split(".")
     return remote_did, local_did, signer_did
 
-
-async def hello(request):
+def validate_client_cert(request):
     ssl_socket = request.transport.get_extra_info('ssl_object')
     peer_cert_raw = ssl_socket.getpeercert(binary_form=True)
     peer_cert_details = ssl_socket.getpeercert()
@@ -40,12 +39,22 @@ async def hello(request):
     print("Peer Cert: ")
     print(client_did)
     print(peer_cert_raw)
-    #TODO: Look up DID in commonName and verify certificate is presented as expected.
+    # TODO: verify certificate is presented as expected.
 
+async def client_cert_middleware(app, handler):
+    async def middleware_handler(request):
+        validate_client_cert(request)
+        # TODO: Fail request if client cert is not valid.
+        # TODO: Augment request context with client cert information.
+
+        return await handler(request)
+    return middleware_handler
+
+async def hello(request):
     #mutual auth in place.
     return web.Response(body=b'hello')
 
-app = web.Application()
+app = web.Application(middlewares=[client_cert_middleware])
 app.router.add_route('GET', '/', hello)
 
 
